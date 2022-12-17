@@ -2,13 +2,16 @@ package main
 
 import (
 	"github.com/nonex-code/toolset/gaes"
+	"github.com/nonex-code/toolset/gpool"
 	"github.com/nonex-code/toolset/gsm2"
 	"log"
+	"time"
 )
 
 func main() {
 	//test_sm2()
-	test_aes()
+	//test_aes()
+	tast_gpool()
 }
 func test_sm2() {
 	pwd := []byte("")
@@ -48,4 +51,23 @@ func test_aes() {
 		return
 	}
 	log.Println(string(dd))
+}
+
+func tast_gpool() {
+	pool := gpool.NewTaskPool(1000)
+	for i := 0; i < 100000; i++ {
+		v := i
+
+		task := func() {
+			log.Println(v)
+			time.Sleep(time.Second * 1)
+		}
+		err := pool.Submit(task)
+		if err != nil {
+			return
+		}
+
+	}
+	pool.Close()
+
 }
