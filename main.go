@@ -4,14 +4,17 @@ import (
 	"github.com/nonex-code/toolset/gaes"
 	"github.com/nonex-code/toolset/gpool"
 	"github.com/nonex-code/toolset/gsm2"
+	"github.com/nonex-code/toolset/securitycode"
 	"log"
+	"strings"
 	"time"
 )
 
 func main() {
 	//test_sm2()
 	//test_aes()
-	tast_gpool()
+	//tast_gpool()
+	test_secCode()
 }
 func test_sm2() {
 	pwd := []byte("")
@@ -70,4 +73,12 @@ func tast_gpool() {
 	}
 	pool.Close()
 
+}
+func test_secCode() {
+
+	secCode := securitycode.NewSimpleSecCode()
+	sc := secCode.Generate().GetSecCode()
+	b := securitycode.VerifySecCode(sc, sc)
+	c := securitycode.VerifySecCodeIgnoreCase(strings.ToLower(sc), sc)
+	log.Println(b, c)
 }
