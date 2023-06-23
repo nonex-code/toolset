@@ -14,7 +14,7 @@ func main() {
 	//test_sm2()
 	//test_aes()
 	//tast_gpool()
-	test_secCode()
+	//test_secCode()
 }
 func test_sm2() {
 	pwd := []byte("")
