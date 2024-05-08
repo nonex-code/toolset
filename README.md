@@ -46,3 +46,29 @@ if err != nil {
 }
 log.Println(string(dd))
 ```
+## gpool示例
+```go
+pool := gpool.NewTaskPool(10)
+for i := 0; i < 100; i++ {
+    v := i
+
+    task := func() {
+        log.Println(v)
+        //time.Sleep(time.Second * 1)
+    }
+    err := pool.Submit(task)
+    if err != nil {
+        return
+    }
+
+}
+pool.Close()
+```
+## 验证码示例
+```go
+secCode := securitycode.NewSimpleSecCode()
+sc := secCode.Generate().GetSecCode()
+b := securitycode.VerifySecCode(sc, sc)
+c := securitycode.VerifySecCodeIgnoreCase(strings.ToLower(sc), sc)
+log.Println(b, c)
+```
