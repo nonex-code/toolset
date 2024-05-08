@@ -7,14 +7,13 @@ import (
 	"github.com/nonex-code/toolset/securitycode"
 	"log"
 	"strings"
-	"time"
 )
 
 func main() {
-	//test_sm2()
-	//test_aes()
-	//tast_gpool()
-	//test_secCode()
+	test_sm2()
+	test_aes()
+	tast_gpool()
+	test_secCode()
 }
 func test_sm2() {
 	pwd := []byte("")
@@ -57,13 +56,13 @@ func test_aes() {
 }
 
 func tast_gpool() {
-	pool := gpool.NewTaskPool(1000)
-	for i := 0; i < 100000; i++ {
+	pool := gpool.NewTaskPool(10)
+	for i := 0; i < 100; i++ {
 		v := i
 
 		task := func() {
 			log.Println(v)
-			time.Sleep(time.Second * 1)
+			//time.Sleep(time.Second * 1)
 		}
 		err := pool.Submit(task)
 		if err != nil {
