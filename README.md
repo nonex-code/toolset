@@ -65,10 +65,15 @@ for i := 0; i < 100; i++ {
 pool.Close()
 ```
 ## 验证码示例
-```go
+```text
 secCode := securitycode.NewSimpleSecCode()
 sc := secCode.Generate().GetSecCode()
 b := securitycode.VerifySecCode(sc, sc)
 c := securitycode.VerifySecCodeIgnoreCase(strings.ToLower(sc), sc)
 log.Println(b, c)
+```
+
+## 发送邮件示例
+```go
+
 ```
