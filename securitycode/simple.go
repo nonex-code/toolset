@@ -90,7 +90,7 @@ func (s *SimpleSecCode) CreateImgFile(path string) error {
 	return nil
 }
 
-//生成验证码字符数组
+// 生成验证码字符数组
 func (s *SimpleSecCode) createSecCodeList() *SimpleSecCode {
 	chatMap := s.createCharactersMap().characterMap
 	var build strings.Builder
@@ -106,7 +106,7 @@ func (s *SimpleSecCode) createSecCodeList() *SimpleSecCode {
 	return s
 }
 
-//生成验证码图片
+// 生成验证码图片
 func (s *SimpleSecCode) createImage() {
 	s.imgHeight = int(s.FontSize * 1.2)
 	s.imgWidth = int(s.FontSize) * s.SecCodeLength
@@ -163,24 +163,24 @@ func (s *SimpleSecCode) createImage() {
 	s.img = img
 }
 
-//获取验证码对应的key
+// 获取验证码对应的key
 func (s *SimpleSecCode) key(str string) string {
 	h := md5.New()
 	h.Write([]byte(str))
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-//生成验证码取值范围
+// 生成验证码取值范围
 func (s *SimpleSecCode) createCharactersMap() *SimpleSecCode {
 	var smallLetter []string
 	var capitalLetter []string
 	var number []string
 
 	for i := 97; i < 123; i++ {
-		smallLetter = append(smallLetter, string(i))
+		smallLetter = append(smallLetter, string(rune(i)))
 	}
 	for i := 90; i > 64; i-- {
-		capitalLetter = append(capitalLetter, string(i))
+		capitalLetter = append(capitalLetter, string(rune(i)))
 	}
 	for i := 0; i < 10; i++ {
 		number = append(number, strconv.Itoa(i))
