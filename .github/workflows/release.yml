@@ -1,0 +1,48 @@
+name: Release
+
+# 推送 v* 形式的 tag 时自动创建 GitHub Release。
+# Push a tag like v1.2.3 to create a GitHub Release automatically.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# 创建 Release 需要写权限。
+# Creating a release requires write permission.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Test and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 生成发行说明需要完整历史与所有 tag。
+          # Full history and tags are needed to generate release notes.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # 依据上一次 tag 到本次 tag 的提交自动生成发行说明。
+          # Auto-generate release notes from commits since the previous tag.
+          generate_release_notes: true
+          # 标记为最新版本。
+          make_latest: true
