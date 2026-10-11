@@ -29,14 +29,34 @@ log.Println("验签结果：", b)
 
 ## aes 示例
 
+> 推荐使用 AES-GCM（认证加密，可检测篡改）。`Encrypt` / `Decrypt` 为兼容旧数据的废弃接口，使用固定 IV，请勿用于新数据。
+
+### AES-GCM（推荐）
+
 ```go
 data := []byte("123")
 key := []byte("1111111111111111")
-ed, err := gaes.Encrypt(data, key)
+ed, err := gaes.EncryptGCM(data, key)
 if err != nil {
     return
 }
-dd, err := gaes.Decrypt(ed, key)
+dd, err := gaes.DecryptGCM(ed, key)
+if err != nil {
+    return
+}
+log.Println(string(dd))
+```
+
+### AES-CBC + 随机 IV（V2）
+
+```go
+data := []byte("123")
+key := []byte("1111111111111111")
+ed, err := gaes.EncryptV2(data, key)
+if err != nil {
+    return
+}
+dd, err := gaes.DecryptV2(ed, key)
 if err != nil {
     return
 }
