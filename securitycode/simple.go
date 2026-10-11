@@ -3,21 +3,31 @@ package securitycode
 import (
 	"bytes"
 	"crypto/md5"
+	cryptorand "crypto/rand"
+	_ "embed"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"github.com/golang/freetype"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
-	"io/ioutil"
-	"log"
 	"math/rand"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang/freetype"
 )
+
+// defaultFontData is the built-in typeface, embedded so the package no longer
+// depends on the process working directory.
+// defaultFontData 是内置字体，通过 embed 打入二进制，避免依赖进程工作目录。
+//
+//go:embed typeface/ZhiyongElegant.ttf
+var defaultFontData []byte
 
 type SimpleSecCode struct {
 	SecCodeLength int //验证码长度
@@ -31,7 +41,7 @@ type SimpleSecCode struct {
 	FontSize     float64
 	img          *image.NRGBA
 	rander       *rand.Rand
-	FontFilePath string
+	FontFilePath string //自定义字体路径，为空时使用内置字体
 }
 
 func NewSimpleSecCode() *SimpleSecCode {
@@ -40,127 +50,148 @@ func NewSimpleSecCode() *SimpleSecCode {
 		FontSize:      32,
 		pdi:           95,
 		characterMap:  make(map[int][]string),
-		rander:        rand.New(rand.NewSource(time.Now().UnixNano())),
-		FontFilePath:  "./securitycode/typeface/ZhiyongElegant.ttf",
+		rander:        rand.New(rand.NewSource(randomSeed())),
 	}
 	s.createCharactersMap()
 	return s
 }
 
-// Generate 生成验证码
+// randomSeed returns an unpredictable seed for the captcha generator.
+// randomSeed 为验证码生成器返回一个不可预测的随机种子。
+func randomSeed() int64 {
+	var b [8]byte
+	if _, err := cryptorand.Read(b[:]); err == nil {
+		return int64(binary.LittleEndian.Uint64(b[:]))
+	}
+	return time.Now().UnixNano()
+}
+
+// Generate creates the captcha text and image. Errors are ignored; use
+// GenerateWithError if you need to handle them.
+// Generate 生成验证码文本与图片。忽略错误；如需处理错误请使用 GenerateWithError。
 func (s *SimpleSecCode) Generate() *SimpleSecCode {
-	s.createSecCodeList()
-	s.createImage()
+	_, _ = s.GenerateWithError()
 	return s
 }
 
-// GetImgBase64 获取验证码图片 base64
-func (s *SimpleSecCode) GetImgBase64() (string, error) {
-	buffer := new(bytes.Buffer)
-	err := png.Encode(buffer, s.img)
-	if err != nil {
-		log.Println(err)
-		return "", errors.New(err.Error())
+// GenerateWithError creates the captcha text and image and reports any error.
+// GenerateWithError 生成验证码文本与图片并返回错误。
+func (s *SimpleSecCode) GenerateWithError() (*SimpleSecCode, error) {
+	s.createSecCodeList()
+	if err := s.createImage(); err != nil {
+		return s, err
 	}
-	sc := base64.StdEncoding.EncodeToString(buffer.Bytes())
-	return sc, nil
+	return s, nil
 }
 
-// GetSecCode 获取验证码字符串
+// GetImgBase64 returns the captcha image as a base64-encoded PNG.
+// GetImgBase64 返回 base64 编码的 PNG 验证码图片。
+func (s *SimpleSecCode) GetImgBase64() (string, error) {
+	if s.img == nil {
+		return "", errors.New("securitycode: image not generated")
+	}
+	buffer := new(bytes.Buffer)
+	if err := png.Encode(buffer, s.img); err != nil {
+		return "", fmt.Errorf("securitycode: encode png: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(buffer.Bytes()), nil
+}
+
+// GetSecCode returns the captcha string.
+// GetSecCode 获取验证码字符串。
 func (s *SimpleSecCode) GetSecCode() string {
 	return s.secCode
 }
 
-// GetSecCodeKey 获取验证码key
+// GetSecCodeKey returns the MD5 key of the captcha string.
+// GetSecCodeKey 获取验证码 key。
 func (s *SimpleSecCode) GetSecCodeKey() string {
 	return s.secCodeKey
 }
 
-// CreateImgFile 创建图片文件 ./test.png
+// CreateImgFile writes the captcha image to path.
+// CreateImgFile 将验证码图片写入 path。
 func (s *SimpleSecCode) CreateImgFile(path string) error {
+	if s.img == nil {
+		return errors.New("securitycode: image not generated")
+	}
 	imgfile, err := os.Create(path)
 	if err != nil {
 		return err
 	}
 	defer imgfile.Close()
-	err = png.Encode(imgfile, s.img)
-	if err != nil {
-		return err
+	if err := png.Encode(imgfile, s.img); err != nil {
+		return fmt.Errorf("securitycode: encode png: %w", err)
 	}
 	return nil
 }
 
 // 生成验证码字符数组
 func (s *SimpleSecCode) createSecCodeList() *SimpleSecCode {
-	chatMap := s.createCharactersMap().characterMap
 	var build strings.Builder
 	for i := 0; i < s.SecCodeLength; i++ {
-		j := s.rander.Intn(len(chatMap))
-		k := s.rander.Intn(len(chatMap[j]))
-		chat := chatMap[j][k]
-		build.WriteString(chat)
+		j := s.rander.Intn(len(s.characterMap))
+		k := s.rander.Intn(len(s.characterMap[j]))
+		build.WriteString(s.characterMap[j][k])
 	}
-	secCode := build.String()
-	s.secCode = secCode
-	s.secCodeKey = s.key(secCode)
+	s.secCode = build.String()
+	s.secCodeKey = s.key(s.secCode)
 	return s
 }
 
 // 生成验证码图片
-func (s *SimpleSecCode) createImage() {
+func (s *SimpleSecCode) createImage() error {
 	s.imgHeight = int(s.FontSize * 1.2)
 	s.imgWidth = int(s.FontSize) * s.SecCodeLength
 	img := image.NewNRGBA(image.Rect(0, 0, s.imgWidth, s.imgHeight))
-	var rgbRand = []uint8{uint8(s.rander.Intn(85)), uint8(s.rander.Intn(170-85) + 85), uint8(s.rander.Intn(255-170) + 170)}
-	//设置每个点的 RGBA (Red,Green,Blue,Alpha(设置透明度))
-	for i := 0; i < (s.imgWidth*s.imgHeight)/1; i++ {
 
-		img.Set(rand.Intn(s.imgWidth), s.rander.Intn(s.imgHeight), color.NRGBA{
+	var rgbRand = []uint8{uint8(s.rander.Intn(85)), uint8(s.rander.Intn(170-85) + 85), uint8(s.rander.Intn(255-170) + 170)}
+	// 设置每个点的 RGBA
+	for i := 0; i < s.imgWidth*s.imgHeight; i++ {
+		img.Set(s.rander.Intn(s.imgWidth), s.rander.Intn(s.imgHeight), color.NRGBA{
 			R: rgbRand[s.rander.Intn(3)],
-			//G: rgbRand[rander.Intn(3)],
 			B: rgbRand[s.rander.Intn(3)],
-			//R: 245,
 			G: 245,
-			//B: 220,
-			//设定alpha图片的透明度 0透明1不透明
 			A: 255,
 		})
 	}
-	//读取字体数据
-	//fontBytes, err := ioutil.ReadFile("./Kurland.ttf")
-	fontBytes, err := ioutil.ReadFile(s.FontFilePath)
 
-	if err != nil {
-		log.Println(err)
+	// Prefer a caller-provided font; otherwise use the embedded default.
+	// 优先使用调用方指定的字体，否则使用内置字体。
+	fontData := defaultFontData
+	if s.FontFilePath != "" {
+		if data, err := os.ReadFile(s.FontFilePath); err == nil {
+			fontData = data
+		}
 	}
-	//载入字体数据
-	font, err := freetype.ParseFont(fontBytes)
+	font, err := freetype.ParseFont(fontData)
 	if err != nil {
-		log.Println("load front fail", err)
+		return fmt.Errorf("securitycode: parse font: %w", err)
 	}
+
 	f := freetype.NewContext()
-	//设置分辨率
 	f.SetDPI(s.pdi)
-	//设置字体
 	f.SetFont(font)
-	//设置尺寸
-	f.SetFontSize(26)
+	f.SetFontSize(s.FontSize)
 	f.SetClip(img.Bounds())
-	//设置输出的图片
 	f.SetDst(img)
 
 	x := s.imgWidth / int(s.FontSize)
 	for _, v := range s.secCode {
-		//设置字体颜色
-		f.SetSrc(image.NewUniform(color.RGBA{R: rgbRand[s.rander.Intn(3)], G: rgbRand[s.rander.Intn(3)], B: rgbRand[s.rander.Intn(3)], A: 255}))
-
-		//设置字体的位置
-		pt := freetype.Pt(x, s.imgHeight/2+int(f.PointToFixed(26))>>8)
-
-		f.DrawString(string(v), pt)
-		x = x + int(s.FontSize)
+		f.SetSrc(image.NewUniform(color.RGBA{
+			R: rgbRand[s.rander.Intn(3)],
+			G: rgbRand[s.rander.Intn(3)],
+			B: rgbRand[s.rander.Intn(3)],
+			A: 255,
+		}))
+		pt := freetype.Pt(x, s.imgHeight/2+int(f.PointToFixed(s.FontSize))>>8)
+		if _, err := f.DrawString(string(v), pt); err != nil {
+			return fmt.Errorf("securitycode: draw string: %w", err)
+		}
+		x += int(s.FontSize)
 	}
 	s.img = img
+	return nil
 }
 
 // 获取验证码对应的key
@@ -191,24 +222,26 @@ func (s *SimpleSecCode) createCharactersMap() *SimpleSecCode {
 	return s
 }
 
-// VerifySecCode 不区分大小写
+// VerifySecCode compares two captcha strings case-insensitively.
+// VerifySecCode 不区分大小写地比较两个验证码字符串。
 func VerifySecCode(seccode1, seccode2 string) bool {
-	if len(seccode1) != len(seccode2) {
-		return false
-	}
-	if !strings.EqualFold(seccode1, seccode2) {
-		return false
-	}
-	return true
+	return strings.EqualFold(seccode1, seccode2)
 }
 
-// VerifySecCodeIgnoreCase 区分大小写
+// VerifySecCodeCaseSensitive compares two captcha strings exactly (case-sensitive).
+// VerifySecCodeCaseSensitive 精确比较两个验证码字符串（区分大小写）。
+func VerifySecCodeCaseSensitive(seccode1, seccode2 string) bool {
+	return seccode1 == seccode2
+}
+
+// VerifySecCodeIgnoreCase is a deprecated alias of VerifySecCode.
+//
+// Deprecated: the name previously contradicted the behavior. It now matches its
+// name (case-insensitive) and is an alias of VerifySecCode. Use VerifySecCode or
+// VerifySecCodeCaseSensitive instead.
+//
+// VerifySecCodeIgnoreCase 是 VerifySecCode 的已废弃别名。现在与名称一致（不区分大小写）。
+// 请改用 VerifySecCode 或 VerifySecCodeCaseSensitive。
 func VerifySecCodeIgnoreCase(seccode1, seccode2 string) bool {
-	if len(seccode1) != len(seccode2) {
-		return false
-	}
-	if seccode1 == seccode2 {
-		return true
-	}
-	return false
+	return VerifySecCode(seccode1, seccode2)
 }
