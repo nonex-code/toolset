@@ -4,12 +4,16 @@
 ```go
 pwd := []byte("")
 text := []byte("123")
-private, public, err := gsm2.GerenateSM2Key(pwd)
+private, public, err := gsm2.GenerateSM2Key(pwd)
 if err != nil {
-log.Println("生成随机密钥失败", err)
+    log.Println("生成随机密钥失败", err)
     return
 }
-sign := gsm2.Sign(text, private, pwd)
+sign, err := gsm2.Sign(text, private, pwd)
+if err != nil {
+    log.Println("签名失败", err)
+    return
+}
 st, err := gsm2.PublicKeyEncrypt(text, public)
 if err != nil {
     return
@@ -20,7 +24,11 @@ if err != nil {
     return
 }
 log.Println(string(ot))
-b := gsm2.Verify(ot, sign, public)
+b, err := gsm2.Verify(ot, sign, public)
+if err != nil {
+    log.Println("验签失败", err)
+    return
+}
 if !b {
     log.Println("验签名失败")
 }
@@ -88,8 +96,8 @@ pool.Close()
 ```text
 secCode := securitycode.NewSimpleSecCode()
 sc := secCode.Generate().GetSecCode()
-b := securitycode.VerifySecCode(sc, sc)
-c := securitycode.VerifySecCodeIgnoreCase(strings.ToLower(sc), sc)
+b := securitycode.VerifySecCode(sc, sc)                          // 不区分大小写
+c := securitycode.VerifySecCodeCaseSensitive(sc, sc)             // 区分大小写
 log.Println(b, c)
 ```
 
