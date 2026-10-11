@@ -1,4 +1,15 @@
 # toolset
+
+Go 常用工具集：邮件发送、AES 加解密、SM2 国密、协程池、图片验证码。
+
+| 模块 | 说明 |
+| --- | --- |
+| [email](./email) | SMTP 邮件发送（SSL/STARTTLS、HTML、附件、内嵌图片） |
+| [gaes](./gaes) | AES 加解密（推荐 GCM，兼容随机 IV 的 CBC V2） |
+| [gsm2](./gsm2) | SM2 密钥生成、加解密、签名验签 |
+| [gpool](./gpool) | 固定大小协程池 |
+| [securitycode](./securitycode) | 图片验证码 |
+
 ## sm2 示例
 
 ```go
@@ -101,13 +112,11 @@ c := securitycode.VerifySecCodeCaseSensitive(sc, sc)             // 区分大小
 log.Println(b, c)
 ```
 
-## 发送邮件示例
-
-```go
-
-```
-
 ## 邮件示例
+
+> 以下示例来自 `email` 包，实际使用时请加上包名前缀，例如 `email.NewMailer(...)`。
+> SMTP 默认使用 SSL（端口 465）；如需明文连接并按需 STARTTLS，可设置 `WithSSL(false)`。
+> 默认校验 TLS 证书，仅在明确需要时使用 `WithSkipTLSVerify(true)` 跳过。
 
 ### 1. 纯文本邮件
 
