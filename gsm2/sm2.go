@@ -3,89 +3,103 @@ package gsm2
 import (
 	"crypto"
 	"crypto/rand"
+	"errors"
+	"fmt"
+
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/tjfoc/gmsm/x509"
 )
 
-/*
-	基于 "github.com/tjfoc/gmsm/gsm2" 简单的封装
-*/
-// GerenateSM2Key 生成公私钥
-func GerenateSM2Key(pwd []byte) (private, public []byte, err error) {
-	//1.生成sm2密钥对
+// Package gsm2 is a small wrapper around "github.com/tjfoc/gmsm".
+// 基于 "github.com/tjfoc/gmsm" 的简单封装。
+
+// GenerateSM2Key generates an SM2 key pair and returns PEM-encoded private and
+// public keys. pwd is an optional password used to encrypt the private key; pass
+// nil or an empty slice for no encryption.
+// GenerateSM2Key 生成 SM2 密钥对，返回 PEM 编码的私钥与公钥。pwd 为可选的私钥加密口令，nil 或空表示不加密。
+func GenerateSM2Key(pwd []byte) (private, public []byte, err error) {
+	// 1. Generate the SM2 key pair.
 	privateKey, err := sm2.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("gsm2: generate key: %w", err)
 	}
-	//2.通过x509将私钥反序列化并进行pem编码
+	// 2. Serialize and PEM-encode the private key.
 	privateKeyToPem, err := x509.WritePrivateKeyToPem(privateKey, pwd)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("gsm2: encode private key: %w", err)
 	}
-	//3.进行SM2公钥断言
-	publicKey := privateKey.Public().(*sm2.PublicKey)
-	//4.将公钥通过x509序列化并进行pem编码
+	// 3. Derive the public key.
+	publicKey, ok := privateKey.Public().(*sm2.PublicKey)
+	if !ok {
+		return nil, nil, errors.New("gsm2: unexpected public key type")
+	}
+	// 4. Serialize and PEM-encode the public key.
 	publicKeyToPem, err := x509.WritePublicKeyToPem(publicKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("gsm2: encode public key: %w", err)
 	}
-	// 5.返回公私钥 []byte 是否需要写文件自己决定
 	return privateKeyToPem, publicKeyToPem, nil
 }
 
-// PublicKeyEncrypt 公钥加密 originalText 加密原文 publicKey 公钥  return  密文
-func PublicKeyEncrypt(originalText []byte, publicKey []byte) ([]byte, error) {
-	//1.将pem格式公钥解码并反序列化
+// GerenateSM2Key is a deprecated, misspelled alias of GenerateSM2Key.
+//
+// Deprecated: use GenerateSM2Key.
+//
+// GerenateSM2Key 是拼写错误的 GenerateSM2Key 别名，已废弃，请使用 GenerateSM2Key。
+func GerenateSM2Key(pwd []byte) (private, public []byte, err error) {
+	return GenerateSM2Key(pwd)
+}
+
+// PublicKeyEncrypt encrypts originalText with the PEM-encoded public key.
+// PublicKeyEncrypt 使用 PEM 编码的公钥加密 originalText。
+func PublicKeyEncrypt(originalText, publicKey []byte) ([]byte, error) {
 	publicKeyFromPem, err := x509.ReadPublicKeyFromPem(publicKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gsm2: read public key: %w", err)
 	}
-	//2.加密
 	secretText, err := publicKeyFromPem.EncryptAsn1(originalText, rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gsm2: encrypt: %w", err)
 	}
-	return secretText, err
+	return secretText, nil
 }
 
-// PrivateKeyDecrypt 私钥解密
-func PrivateKeyDecrypt(secretText []byte, privateKey []byte, pwd []byte) ([]byte, error) {
-	//1.将pem格式私钥文件解码并反序列话
+// PrivateKeyDecrypt decrypts secretText with the PEM-encoded private key.
+// PrivateKeyDecrypt 使用 PEM 编码的私钥解密 secretText。
+func PrivateKeyDecrypt(secretText, privateKey, pwd []byte) ([]byte, error) {
 	privateKeyFromPem, err := x509.ReadPrivateKeyFromPem(privateKey, pwd)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gsm2: read private key: %w", err)
 	}
-	//2.解密
 	originalText, err := privateKeyFromPem.DecryptAsn1(secretText)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gsm2: decrypt: %w", err)
 	}
-	return originalText, err
+	return originalText, nil
 }
 
-// Sign 签名 originalText 签名原文 privateKey 私钥
-func Sign(originalText []byte, privateKey []byte, pwd []byte) []byte {
-	//1.将pem格式私钥文件解码并反序列话
+// Sign signs originalText with the PEM-encoded private key using SHA-256.
+// Unlike the previous version it returns an error instead of panicking.
+// Sign 使用 PEM 编码的私钥并采用 SHA-256 对 originalText 签名。出错时返回 error 而不是 panic。
+func Sign(originalText, privateKey, pwd []byte) ([]byte, error) {
 	privateKeyFromPem, err := x509.ReadPrivateKeyFromPem(privateKey, pwd)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("gsm2: read private key: %w", err)
 	}
-	//2.签名
 	sign, err := privateKeyFromPem.Sign(rand.Reader, originalText, crypto.SHA256)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("gsm2: sign: %w", err)
 	}
-	return sign
+	return sign, nil
 }
 
-// Verify 验签  originalText 密文 sign 摘要 publicKey 公钥
-func Verify(secretText, sign, publicKey []byte) bool {
-	//1.将pem格式公钥解码并反序列化
+// Verify verifies sign against originalText with the PEM-encoded public key.
+// It returns an error instead of panicking when the key cannot be parsed.
+// Verify 使用 PEM 编码的公钥验证 originalText 的签名 sign。公钥无法解析时返回 error 而不是 panic。
+func Verify(originalText, sign, publicKey []byte) (bool, error) {
 	publicKeyFromPem, err := x509.ReadPublicKeyFromPem(publicKey)
 	if err != nil {
-		panic(err)
+		return false, fmt.Errorf("gsm2: read public key: %w", err)
 	}
-	//3.验签
-	verify := publicKeyFromPem.Verify(secretText, sign)
-	return verify
+	return publicKeyFromPem.Verify(originalText, sign), nil
 }
